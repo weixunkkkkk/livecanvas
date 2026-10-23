@@ -27,7 +27,27 @@ npm run render
 
 `render.mjs` 导出 90 帧、30 fps 的 H.264/yuv420p MP4，JPEG 封面以及 0/30/60/78 帧 PNG。改时长或节奏时同步改 composition 与 coverFrame，确保封面处于可读停留段。`out/render.json` 记录 coverTime，不手工猜时间。
 
-Remotion 默认使用自己的浏览器；必要时通过 `LIVECANVAS_BROWSER` 指定实际存在的 Chromium 可执行文件。这只是渲染工程，不能用来访问用户浏览器账号。中文字体须在渲染机存在；若用自带字体，等待加载后渲染，并保留许可。
+模板使用 Remotion 管理的 Chrome Headless Shell、`gl: swangle` 软件图形、PNG 帧、单并发及关闭并行编码，导出 BT.709 的 H.264/yuv420p。保留这些稳定性起点；性能调优或使用 `LIVECANVAS_BROWSER` 指定其他 Chromium 时，先验证完整帧序列，不把可启动等同于渲染兼容。这只是渲染工程，不能用来访问用户浏览器账号。中文字体须在渲染机存在；若用自带字体，等待加载后渲染，并保留许可。
+
+## 逐帧防闪屏检查
+
+固定抽帧、完整解码成功及 PHLivePhoto 加载通过，都不能排除单帧拼贴、重复顶栏或局部错位。渲染完成后扫描全部解码帧，再检查被标记帧及其前后帧：
+
+```bash
+python3 "$SKILL_DIR/scripts/check_video_frames.py" "$PROJECT_DIR/out/motion.mp4" \
+  --output "$PROJECT_DIR/out/frame-scan.json"
+# 画面存在全程不变的标题等区域时，按实际原始像素坐标指定，不能包含动画：
+python3 "$SKILL_DIR/scripts/check_video_frames.py" "$PROJECT_DIR/out/motion.mp4" \
+  --static-region 0,0,1080,280 --output "$PROJECT_DIR/out/frame-scan.json"
+```
+
+示例区域只适用于该处确实全程静止的版式，不是固定安全区。工具检查每对相邻帧的平均亮度差；默认整帧阈值 12/255、静止区域 0.5/255。结果 `review_required` / 退出码 1 表示需要检查，2 表示工具失败，不能记作通过。阈值是异常筛查起点，不是医学或平台防闪烁认证。正常硬切可用 `--allow-cut-frame 90` 明确允许进入新场景的帧；只按已知分镜声明，不能拿白名单掩盖未知坏帧。
+
+短卡建议同时生成较密的全片缩略图，观察是否有标题复制、画面拼贴、黑白帧或裁切变化。播放预览，分别检查封面切换、动画内部与循环边界。若用户报告 MP4 和实况都闪，先检查源 MP4，再查封装；不要将文件存在、加载通过或六张正常抽帧当作完整画面验收。
+
+出现坏帧时保留带帧号的证据，使用模板的稳定配置重新渲染。无需为防闪屏删除产品图、改写内容、取消主题动作或改为静态卡。若当前环境仍无法稳定渲染，记录实际失败，不能声称已修复。修复后重新扫描，重新生成封面、MP4、配对 MOV/JPEG、PVT 与预览，核对最终包内视频；禁止对已配对 MOV 普通转码。
+
+在 qa.json 记录解码帧数、检查帧对数、静止区域坐标、阈值、异常帧数及实际视觉复核结果。文件检查通过与手机/接收应用播放验证分开记录。
 
 ## Live Photo 配对
 
